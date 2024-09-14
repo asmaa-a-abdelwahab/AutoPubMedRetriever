@@ -210,7 +210,7 @@ if st.button("🚀 Launch Search"):
                 df = pd.DataFrame(articles)
 
                 # Convert any unhashable columns (e.g., lists, dictionaries) to strings
-                df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
+                df = df.map(lambda x: str(x) if isinstance(x, (list, dict)) else x)
 
                 # Drop duplicates based on specific columns that are less likely to have complex data
                 df = df.drop_duplicates(subset=['title', 'pmid'], keep='first')
@@ -252,7 +252,7 @@ if st.button("🚀 Launch Search"):
             df = pd.DataFrame(helper.articleList)
 
             # Convert unhashable columns to strings
-            df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
+            df = df.map(lambda x: str(x) if isinstance(x, (list, dict)) else x)
 
             # Drop duplicates based on specific columns
             df = df.drop_duplicates(subset=['title', 'pmid'], keep='first')
