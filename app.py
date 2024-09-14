@@ -207,7 +207,7 @@ if st.button("🚀 Launch Search"):
 
             # Prepare DataFrame to send as CSV attachment
             if articles:
-                df = pd.DataFrame(helper.articleList)
+                df = pd.DataFrame(articles)
 
                 # Convert any unhashable columns (e.g., lists, dictionaries) to strings
                 df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
