@@ -1,0 +1,6 @@
+Bio==1.7.1
+biopython==1.78
+metapub==0.5.12
+pandas==2.2.2
+Requests==2.32.3
+streamlit==1.32.0

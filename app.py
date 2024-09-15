@@ -1,4 +1,3 @@
-import os
 import time
 import logging
 import requests
@@ -8,11 +7,6 @@ import streamlit as st
 from Bio import Entrez
 from metapub import FindIt, PubMedFetcher
 from itertools import product
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from email.mime.text import MIMEText
 from io import BytesIO
 
 pd.set_option('display.max_colwidth', 1)
