@@ -9,14 +9,17 @@ from metapub import FindIt, PubMedFetcher
 from itertools import product
 from io import BytesIO
 
-pd.set_option('display.max_colwidth', 1)
+pd.set_option("display.max_colwidth", 1)
 
 # Streamlit App Setup
-st.markdown("""
+st.markdown(
+    """
     <div style="text-align: center;">
         <h1>🧬 --- PubMed Retriever --- 🧬\nCompound-Gene Relationships</h1>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("""
     This tool allows you to search PubMed for combinations of compounds and genes. 
@@ -32,11 +35,17 @@ genes_input = st.text_area("🧬 Enter Genes (One Gene per Line)")
 genes = [gene.strip() for gene in genes_input.split("\n")]
 
 # New input for additional keywords from user
-additional_keywords_input = st.text_area("🔗 Enter Relationship Keywords (One Keyword per Line)")
+additional_keywords_input = st.text_area(
+    "🔗 Enter Relationship Keywords (One Keyword per Line)"
+)
 
 # Convert the additional keywords into a PubMed-compatible OR query
-additional_keywords_list = [keyword.strip() for keyword in additional_keywords_input.split("\n")]
-additional_condition = f"AND ({' OR '.join([f'{kw}[Title/Abstract]' for kw in additional_keywords_list])})"
+additional_keywords_list = [
+    keyword.strip() for keyword in additional_keywords_input.split("\n")
+]
+additional_condition = (
+    f"AND ({' OR '.join([f'{kw}[Title/Abstract]' for kw in additional_keywords_list])})"
+)
 
 # Sidebar for Configuration
 st.sidebar.markdown(
@@ -44,17 +53,31 @@ st.sidebar.markdown(
     <div style="float: left;">
         <img src="https://raw.githubusercontent.com/asmaa-a-abdelwahab/AIGraphQuery-/main/EwC%20full%20logo.png" alt="Logo" width="100" style="border-radius: 1px; float: left;">
     </div>
-    """, 
-    unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True,
 )
 
 # Sidebar for input fields
 st.sidebar.write("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 st.sidebar.title("Configuration")
 top_n = st.sidebar.slider("Select number of top synonyms per compound", 1, 10, 5)
-retmax = st.sidebar.slider("Maximum number of PubMed articles to retrieve", 50, 100, 1000, 500)
-start_year = st.sidebar.number_input("Start Year", value=2000, step=1, min_value=1900, max_value=datetime.datetime.now().year)
-end_year = st.sidebar.number_input("End Year", value=datetime.datetime.now().year, step=1, min_value=1900, max_value=datetime.datetime.now().year)
+retmax = st.sidebar.slider(
+    "Maximum number of PubMed articles to retrieve", 50, 100, 1000, 500
+)
+start_year = st.sidebar.number_input(
+    "Start Year",
+    value=2000,
+    step=1,
+    min_value=1900,
+    max_value=datetime.datetime.now().year,
+)
+end_year = st.sidebar.number_input(
+    "End Year",
+    value=datetime.datetime.now().year,
+    step=1,
+    min_value=1900,
+    max_value=datetime.datetime.now().year,
+)
 st.sidebar.write("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 st.sidebar.markdown(
     """
@@ -63,18 +86,20 @@ st.sidebar.markdown(
             <a href="https://github.com/asmaa-a-abdelwahab" target="_blank" style="font-size:14px; color:black;">Asmaa A. Abdelwahab</a>
         </p>
     </div>
-    """, 
-    unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True,
 )
+
 
 # Cache to prevent redundant queries
 @st.cache_data(show_spinner=False)
 def cache_synonyms(compound):
     return CompoundResearchHelper(email).most_common_synonyms(compound, top_n)
 
+
 class CompoundResearchHelper:
     """A class to fetch compound synonyms and retrieve relevant articles from PubMed."""
-    
+
     def __init__(self, email, retmax=1000):
         self.email = email
         Entrez.email = email
@@ -90,9 +115,9 @@ class CompoundResearchHelper:
             cid_url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{compound_name}/cids/JSON"
             cid_response = requests.get(cid_url)
             cid_response.raise_for_status()
-            
+
             cid_data = cid_response.json()
-            cid = cid_data.get('IdentifierList', {}).get('CID', [None])[0]
+            cid = cid_data.get("IdentifierList", {}).get("CID", [None])[0]
             if not cid:
                 logging.warning(f"No CID found for {compound_name}")
                 return []
@@ -102,7 +127,11 @@ class CompoundResearchHelper:
             synonyms_response.raise_for_status()
 
             synonyms_data = synonyms_response.json()
-            all_synonyms = synonyms_data.get('InformationList', {}).get('Information', [{}])[0].get('Synonym', [])
+            all_synonyms = (
+                synonyms_data.get("InformationList", {})
+                .get("Information", [{}])[0]
+                .get("Synonym", [])
+            )
             return all_synonyms or []
 
         except requests.HTTPError as http_err:
@@ -135,57 +164,89 @@ class CompoundResearchHelper:
             return []
 
         frequency = self.get_synonym_frequency(all_synonyms)
-        sorted_synonyms = sorted(frequency.items(), key=lambda item: item[1], reverse=True)
+        sorted_synonyms = sorted(
+            frequency.items(), key=lambda item: item[1], reverse=True
+        )
         self.synonym_data[compound_name] = sorted_synonyms
         return [compound_name] + [synonym for synonym, _ in sorted_synonyms[:top_n]]
 
     def fetch_articles(self, search_term, retmax=1000, start_year=2000, end_year=None):
         """Fetch articles' metadata from PubMed based on a given search term and date range."""
-        date_range = f" AND (\"{start_year}/01/01\"[PDat] : \"{end_year}/12/31\"[PDat])" if end_year else ""
+        date_range = (
+            f' AND ("{start_year}/01/01"[PDat] : "{end_year}/12/31"[PDat])'
+            if end_year
+            else ""
+        )
         full_search_term = f"{search_term}{date_range}"
-        
+
         try:
-            pmids = self.pubmed.pmids_for_query(full_search_term, retmax=retmax, sort='relevance')
+            pmids = self.pubmed.pmids_for_query(
+                full_search_term, retmax=retmax, sort="relevance"
+            )
         except Exception as e:
             logging.error(f"Error fetching pmids for {search_term}: {e}")
             return []
-        
+
         articles = []
         for pmid in pmids:
             try:
                 article = self.pubmed.article_by_pmid(pmid)
                 article_dict = article.to_dict()
-                keys_to_keep = ['title', 'pmid', 'url', 'authors', 'doi', 'pmc', 'issn', 'mesh', 'chemicals', 'journal', 'abstract', 'year']
+                keys_to_keep = [
+                    "title",
+                    "pmid",
+                    "url",
+                    "authors",
+                    "doi",
+                    "pmc",
+                    "issn",
+                    "mesh",
+                    "chemicals",
+                    "journal",
+                    "abstract",
+                    "year",
+                ]
                 article_dict = {k: article_dict.get(k, None) for k in keys_to_keep}
 
                 try:
                     time.sleep(1)
                     src = FindIt(pmid, retry_errors=True)
                     if src and src.url:
-                        article_dict['url'] = src.url
+                        article_dict["url"] = src.url
                 except Exception as inner_e:
-                    logging.warning(f"Warning while trying to find URL for {pmid}: {inner_e}")
+                    logging.warning(
+                        f"Warning while trying to find URL for {pmid}: {inner_e}"
+                    )
 
                 articles.append(article_dict)
             except Exception as e:
                 logging.error(f"Error processing article with pmid {pmid}: {e}")
         return articles
 
-    def process_compound_and_genes(self, compound, genes, start_year, end_year, additional_condition):
+    def process_compound_and_genes(
+        self, compound, genes, start_year, end_year, additional_condition
+    ):
         """Process a single compound and multiple genes for synonym lookup and article fetching."""
         logging.info(f"Processing compound: {compound}")
         top_synonyms = cache_synonyms(compound)
 
         # Combine each synonym with every gene
-        queries = [f"({synonym}[Title/Abstract]) AND ({gene}[Title/Abstract]) {additional_condition}" 
-                for synonym, gene in product(top_synonyms, genes)]
+        queries = [
+            f"({synonym}[Title/Abstract]) AND ({gene}[Title/Abstract]) {additional_condition}"
+            for synonym, gene in product(top_synonyms, genes)
+        ]
 
         # Fetch articles for each combination
         for query in queries:
-            self.articleList.extend(self.fetch_articles(query, retmax=self.retmax, start_year=start_year, end_year=end_year))
+            self.articleList.extend(
+                self.fetch_articles(
+                    query, retmax=self.retmax, start_year=start_year, end_year=end_year
+                )
+            )
 
         # Return articles for the compound-gene combination
         return self.articleList
+
 
 # Run when the user clicks the "Search" button
 if st.button("🚀 Launch Search"):
@@ -205,7 +266,9 @@ if st.button("🚀 Launch Search"):
             helper.articleList = []  # Clear the article list before processing a new compound
 
             # Retrieve articles for the current compound
-            articles = helper.process_compound_and_genes(compound, genes, start_year, end_year, additional_condition)
+            articles = helper.process_compound_and_genes(
+                compound, genes, start_year, end_year, additional_condition
+            )
 
             # Prepare DataFrame to save and display for each compound
             if articles:
@@ -215,11 +278,11 @@ if st.button("🚀 Launch Search"):
                 df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
 
                 # Drop duplicates based on specific columns
-                df = df.drop_duplicates(subset=['title', 'pmid'], keep='first')
+                df = df.drop_duplicates(subset=["title", "pmid"], keep="first")
 
                 # Convert 'year' column to numeric, ignoring errors
-                if 'year' in df.columns:
-                    df['year'] = pd.to_numeric(df['year'], errors='coerce')
+                if "year" in df.columns:
+                    df["year"] = pd.to_numeric(df["year"], errors="coerce")
 
                 df.reset_index(drop=True, inplace=True)
 
@@ -250,15 +313,17 @@ if st.button("🚀 Launch Search"):
             combined_df = pd.concat(all_articles, ignore_index=True)
 
             # Drop duplicates across all combined articles
-            combined_df = combined_df.drop_duplicates(subset=['title', 'pmid'], keep='first')
+            combined_df = combined_df.drop_duplicates(
+                subset=["title", "pmid"], keep="first"
+            )
 
             # Save the combined DataFrame to a CSV
-            combined_df.to_csv('combined_pubmed_articles.csv', index=False)
+            combined_df.to_csv("combined_pubmed_articles.csv", index=False)
 
             # Show the combined DataFrame in Streamlit
             st.subheader("Combined Articles for All Compounds")
             st.dataframe(combined_df)
 
-            st.success(f"✔️ Combined articles saved to 'combined_pubmed_articles.csv'")
+            st.success("✔️ Combined articles saved to 'combined_pubmed_articles.csv'")
         else:
             st.warning("No articles found for any of the compounds.")
