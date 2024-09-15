@@ -201,18 +201,26 @@ if st.button("🚀 Launch Search"):
         st.info("⏳ Starting article retrieval process...")
         helper = CompoundResearchHelper(email)
 
+        # List to store DataFrames for each compound
+        all_articles = []
+
         for compound in compounds_list:
             st.info(f"🔍 Processing compound: {compound}")
+
+            # Ensure that the helper.articleList is reset before processing each compound
+            helper.articleList = []  # Clear the article list before processing a new compound
+
+            # Retrieve articles for the current compound
             articles = helper.process_compound_and_genes(compound, genes, start_year, end_year, additional_condition)
 
-            # Prepare DataFrame to send as CSV attachment
+            # Prepare DataFrame to save and display for each compound
             if articles:
                 df = pd.DataFrame(articles)
 
                 # Convert any unhashable columns (e.g., lists, dictionaries) to strings
-                df = df.map(lambda x: str(x) if isinstance(x, (list, dict)) else x)
+                df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
 
-                # Drop duplicates based on specific columns that are less likely to have complex data
+                # Drop duplicates based on specific columns
                 df = df.drop_duplicates(subset=['title', 'pmid'], keep='first')
 
                 # Convert 'year' column to numeric, ignoring errors
@@ -226,7 +234,7 @@ if st.button("🚀 Launch Search"):
                 df.to_csv(output, index=False)
                 output.seek(0)
 
-                # Save the CSV temporarily
+                # Save each compound's articles to a CSV
                 filename = f"{compound}_articles.csv"
                 with open(filename, "wb") as f:
                     f.write(output.read())
@@ -234,40 +242,29 @@ if st.button("🚀 Launch Search"):
                 # Show success for compound
                 st.success(f"✔️ Articles processed for compound: {compound}")
 
-                # Optionally display the DataFrame
+                # Optionally display the DataFrame for the compound
                 st.dataframe(df)
 
-                # Cleanup: Remove the file from the server
-                if os.path.exists(filename):
-                    os.remove(filename)
+                # Append the DataFrame to the list
+                all_articles.append(df)
 
             else:
                 st.warning(f"No articles found for compound: {compound}")
 
-        # Show the articles on the Streamlit app (optional if you want real-time display)
-        if len(helper.articleList) > 0:
-            st.subheader("Fetched Articles for Compounds and Genes")
+        # After processing all compounds, combine all DataFrames
+        if all_articles:
+            combined_df = pd.concat(all_articles, ignore_index=True)
 
-            # Convert article list to a DataFrame
-            df = pd.DataFrame(helper.articleList)
+            # Drop duplicates across all combined articles
+            combined_df = combined_df.drop_duplicates(subset=['title', 'pmid'], keep='first')
 
-            # Convert unhashable columns to strings
-            df = df.map(lambda x: str(x) if isinstance(x, (list, dict)) else x)
+            # Save the combined DataFrame to a CSV
+            combined_df.to_csv('combined_pubmed_articles.csv', index=False)
 
-            # Drop duplicates based on specific columns
-            df = df.drop_duplicates(subset=['title', 'pmid'], keep='first')
+            # Show the combined DataFrame in Streamlit
+            st.subheader("Combined Articles for All Compounds")
+            st.dataframe(combined_df)
 
-            # Convert 'year' column to numeric
-            if 'year' in df.columns:
-                df['year'] = pd.to_numeric(df['year'], errors='coerce')
-
-            df.reset_index(drop=True, inplace=True)
-
-            # Save the cleaned DataFrame to a CSV file
-            df.to_csv('pubmed_articles.csv', index=False)
-
-            # Display the cleaned DataFrame in Streamlit
-            st.dataframe(df)
-
+            st.success(f"✔️ Combined articles saved to 'combined_pubmed_articles.csv'")
         else:
-            st.warning("No articles found for the given combinations.")
+            st.warning("No articles found for any of the compounds.")
