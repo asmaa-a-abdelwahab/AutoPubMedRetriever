@@ -1,13 +1,14 @@
-import time
-import logging
-import requests
 import datetime
+import logging
+import time
+from io import BytesIO
+from itertools import product
+
 import pandas as pd
+import requests
 import streamlit as st
 from Bio import Entrez
 from metapub import FindIt, PubMedFetcher
-from itertools import product
-from io import BytesIO
 
 pd.set_option("display.max_colwidth", 1)
 
