@@ -2,7 +2,9 @@ import datetime
 import logging
 import time
 from io import BytesIO
+import base64
 from itertools import product
+from urllib.parse import quote
 
 import pandas as pd
 import requests
@@ -16,7 +18,7 @@ pd.set_option("display.max_colwidth", 1)
 st.markdown(
     """
     <div style="text-align: center;">
-        <h1>🧬 --- PubMed Retriever --- 🧬\nCompound-Gene Relationships</h1>
+        <h1>🧬 --- PubMed Retriever --- 🧬\nInvestigate Compound Interactions</h1>
     </div>
     """,
     unsafe_allow_html=True,
@@ -24,46 +26,67 @@ st.markdown(
 
 st.markdown("""
     This tool allows you to search PubMed for combinations of compounds and genes. 
-    Results will be processed and emailed to you.
+    Results will be processed and displayed here.
 """)
 
 # Streamlit Input for User (Main Section)
-email = st.text_input("📧 Enter your email", value="example@example.com")
 compounds_input = st.text_area("🧪 Enter Compounds (One Compound per Line)")
-compounds_list = [compound.strip() for compound in compounds_input.split("\n")]
+compounds_list = [
+    compound.strip() for compound in compounds_input.split("\n") if compound.strip()
+]
 
-genes_input = st.text_area("🧬 Enter Genes (One Gene per Line)")
-genes = [gene.strip() for gene in genes_input.split("\n")]
+genes_input = st.text_area("🧬 Enter Genes (One Gene per Line) (Optional)")
+genes = [gene.strip() for gene in genes_input.split("\n") if gene.strip()]
 
 # New input for additional keywords from user
 additional_keywords_input = st.text_area(
-    "🔗 Enter Relationship Keywords (One Keyword per Line)"
+    "🔗 Enter Relationship Keywords (One Keyword per Line) (Optional)"
 )
-
-# Convert the additional keywords into a PubMed-compatible OR query
 additional_keywords_list = [
-    keyword.strip() for keyword in additional_keywords_input.split("\n")
+    keyword.strip()
+    for keyword in additional_keywords_input.split("\n")
+    if keyword.strip()
 ]
+
+# Modify the additional condition only if additional keywords are provided
 additional_condition = (
     f"AND ({' OR '.join([f'{kw}[Title/Abstract]' for kw in additional_keywords_list])})"
+    if additional_keywords_list
+    else ""
 )
 
-# Sidebar for Configuration
+file_ = open("images/logo.png", "rb").read()
+base64_image = base64.b64encode(file_).decode("utf-8")
+
 st.sidebar.markdown(
-    """
+    f"""
     <div style="float: left;">
-        <img src="https://raw.githubusercontent.com/asmaa-a-abdelwahab/AIGraphQuery-/main/EwC%20full%20logo.png" alt="Logo" width="100" style="border-radius: 1px; float: left;">
+        <img src="data:image/png;base64,{base64_image}" alt="Logo" width="200" style="border-radius: 5px;">
     </div>
     """,
     unsafe_allow_html=True,
 )
 
+
 # Sidebar for input fields
 st.sidebar.write("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
 st.sidebar.title("Configuration")
-top_n = st.sidebar.slider("Select number of top synonyms per compound", 1, 10, 5)
+# Ask for Email and NCBI API Key
+# email = st.sidebar.text_input("📧 Enter your email")
+# api_key = st.sidebar.text_input("🔑 Enter your NCBI API key", type="password")
+st.sidebar.markdown(
+    """
+    <div style="text-align: left;">
+        <p style="font-size:14px; color:black;">
+            <a href="https://support.nlm.nih.gov/knowledgebase/article/KA-05317/en-us" target="_blank" style="font-size:14px; color:black;">Instructions for creating NCBI API key</a>
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+top_n = st.sidebar.slider("Select number of top synonyms per compound", 1, 10, 2)
 retmax = st.sidebar.slider(
-    "Maximum number of PubMed articles to retrieve", 50, 100, 1000, 500
+    "Maximum number of PubMed articles to retrieve", 100, 1000, 100
 )
 start_year = st.sidebar.number_input(
     "Start Year",
@@ -80,12 +103,16 @@ end_year = st.sidebar.number_input(
     max_value=datetime.datetime.now().year,
 )
 st.sidebar.write("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+# Sidebar for Configuration
 st.sidebar.markdown(
     """
-    <div style="position: absolute; bottom: 10; width: 100%; text-align: left;">
-        <p style="font-size:14px; color:black;">BY: 
-            <a href="https://github.com/asmaa-a-abdelwahab" target="_blank" style="font-size:14px; color:black;">Asmaa A. Abdelwahab</a>
-        </p>
+    <div style="display: flex; align-items: center; justify-content: left;">
+        <a href="https://github.com/asmaa-a-abdelwahab" target="_blank" style="text-decoration: none;">
+            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="width:40px; height:40px; margin-right: 10px;">
+        </a>
+        <a href="https://github.com/asmaa-a-abdelwahab" target="_blank" style="text-decoration: none;">
+            <p style="font-size: 16px; font-weight: bold; color: black; margin: 0;">@asmaa-a-abdelwahab</p>
+        </a>
     </div>
     """,
     unsafe_allow_html=True,
@@ -95,15 +122,17 @@ st.sidebar.markdown(
 # Cache to prevent redundant queries
 @st.cache_data(show_spinner=False)
 def cache_synonyms(compound):
-    return CompoundResearchHelper(email).most_common_synonyms(compound, top_n)
+    return CompoundResearchHelper().most_common_synonyms(
+        compound, top_n
+    )  # email, api_key
 
 
 class CompoundResearchHelper:
     """A class to fetch compound synonyms and retrieve relevant articles from PubMed."""
 
-    def __init__(self, email, retmax=1000):
-        self.email = email
-        Entrez.email = email
+    def __init__(self, retmax=1000):  # email, api_key,
+        # Entrez.email = email  # Set user-provided email
+        # Entrez.api_key = api_key  # Set user-provided NCBI API key
         self.pubmed = PubMedFetcher()
         self.retmax = retmax
         self.synonym_data = {}
@@ -146,13 +175,22 @@ class CompoundResearchHelper:
         synonym_frequency = {}
         for synonym in synonyms:
             try:
-                handle = Entrez.esearch(db="pubmed", term=synonym, retmax=0)
+                # Encode the synonym to make it URL safe and wrap it in quotes for PubMed
+                encoded_synonym = quote(f'"{synonym}"')
+                handle = Entrez.esearch(
+                    db="pubmed",
+                    term=encoded_synonym,
+                    retmax=0,
+                    api_key=Entrez.api_key,
+                    email=Entrez.email,
+                )
                 record = Entrez.read(handle)
                 synonym_frequency[synonym] = int(record.get("Count", 0))
                 handle.close()
                 time.sleep(0.3)  # Respect PubMed rate limit
             except Exception as e:
                 logging.error(f"Error fetching frequency for {synonym}: {e}")
+                continue  # Skip this synonym and move to the next one
         return synonym_frequency
 
     def most_common_synonyms(self, compound_name, top_n=5):
@@ -231,11 +269,17 @@ class CompoundResearchHelper:
         logging.info(f"Processing compound: {compound}")
         top_synonyms = cache_synonyms(compound)
 
-        # Combine each synonym with every gene
-        queries = [
-            f"({synonym}[Title/Abstract]) AND ({gene}[Title/Abstract]) {additional_condition}"
-            for synonym, gene in product(top_synonyms, genes)
-        ]
+        # Handle queries with or without genes
+        if genes:
+            queries = [
+                f"({synonym}[Title/Abstract]) AND ({gene}[Title/Abstract]) {additional_condition}"
+                for synonym, gene in product(top_synonyms, genes)
+            ]
+        else:
+            queries = [
+                f"({synonym}[Title/Abstract]) {additional_condition}"
+                for synonym in top_synonyms
+            ]
 
         # Fetch articles for each combination
         for query in queries:
@@ -251,11 +295,13 @@ class CompoundResearchHelper:
 
 # Run when the user clicks the "Search" button
 if st.button("🚀 Launch Search"):
-    if not email or not compounds_list or not genes:
-        st.error("Please fill out all fields.")
+    # if not email or not api_key:
+    #     st.error("Please provide both email and NCBI API key.")
+    if not compounds_list:
+        st.error("Please fill out the compound field.")
     else:
         st.info("⏳ Starting article retrieval process...")
-        helper = CompoundResearchHelper(email)
+        helper = CompoundResearchHelper()  # email, api_key
 
         # List to store DataFrames for each compound
         all_articles = []
